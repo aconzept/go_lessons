@@ -582,4 +582,6 @@ Middleware written against `http.Handler` works in `net/http` and `chi` unchange
 - Shut down with `signal.NotifyContext` + `srv.Shutdown(ctx)`; treat `http.ErrServerClosed` as success.
 - On the client: one shared `*http.Client` with a timeout, `NewRequestWithContext`, `defer resp.Body.Close()`, and check the status yourself.
 
+Next: **[SQL with `database/sql`](03-sql.md)** — the `UserStore` this lesson's `Server` struct took as a dependency, actually implemented.
+
 [← Back to roadmap](../roadmap.md)

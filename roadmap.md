@@ -254,6 +254,11 @@ Hands-on companions to the lessons above — setup and code you run, rather than
 - JSON request/response, server timeouts, graceful shutdown
 - A complete worked service
 
+### [SQL with `database/sql`](practice/03-sql.md)
+- The driver package `database/sql` always needs, and why there's no stdlib ORM
+- Connection pooling, `Query`/`QueryRow`/`Exec`, scanning, `NULL` handling
+- Parameterised queries and transactions
+
 ---
 
 *Visit roadmap.sh for the interactive version and related roadmaps: Backend, DevOps, Docker, Kubernetes.*

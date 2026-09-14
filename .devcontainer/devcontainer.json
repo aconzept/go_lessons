@@ -4,7 +4,7 @@
     "dockerfile": "Dockerfile",
     "context": "."
   },
-  "runArgs": ["--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined"],
+  "runArgs": ["--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined", "-p", "127.0.0.1:9090:9090"],
   "customizations": {
     "vscode": {
       "extensions": ["golang.go"],
