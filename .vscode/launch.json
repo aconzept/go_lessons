@@ -6,7 +6,7 @@
       "type": "go",
       "request": "launch",
       "mode": "debug",
-      "program": "${workspaceFolder}/code/test1"
+      "program": "${workspaceFolder}/code/test2"
     }
   ]
 }

@@ -1,0 +1,1 @@
+try https://learn.javascript.ru/currying-partials
