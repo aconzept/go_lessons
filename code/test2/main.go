@@ -36,6 +36,10 @@ func (r APIError) Error() string {
 	return r.Text
 }
 
+func APIErrorNew(code int, Text string) error {
+	return &APIError{Code: code, Text: Text}
+}
+
 func (r *jsonWriter) retJson(status int, data any) {
 	r.Header().Set("Content-Type", "application/json")
 	r.WriteHeader(status)

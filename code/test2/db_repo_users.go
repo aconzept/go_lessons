@@ -102,10 +102,10 @@ func (r *usersImpl) Create(u User) (User, error) {
 		var sqliteErr *sqlite.Error
 		if errors.As(err, &sqliteErr) {
 			if sqliteErr.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE {
-				return User{}, fmt.Errorf("Cannot DBRepoUsers.Create\n%w", &APIError{
-					Code: http.StatusConflict,
-					Text: fmt.Sprintf("Email %s already taken", u.Email),
-				})
+				return User{}, fmt.Errorf("Cannot DBRepoUsers.Create\n%w\n%w",
+					APIErrorNew(http.StatusConflict, fmt.Sprintf("Email %s already taken", u.Email)),
+					err,
+				)
 			}
 		}
 
