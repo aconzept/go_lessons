@@ -2,8 +2,13 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
+	"net/http"
 	"strings"
+
+	"modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 )
 
 type User struct {
@@ -14,8 +19,8 @@ type User struct {
 
 type DBRepoUsers interface {
 	Init()
-	FindAll() []User
-	FindBy(u User) []User
+	FindAll() ([]User, error)
+	FindBy(u User) ([]User, error)
 	Create(u User) (User, error)
 }
 
@@ -39,47 +44,38 @@ CREATE TABLE IF NOT EXISTS users (
 	}
 }
 
-func (r *usersImpl) FindAll() []User {
-	rows, err := r.db.Query("SELECT * FROM users")
-	if err != nil {
-		panic(err)
-	}
-	var result []User
-	for rows.Next() {
-		var id int
-		var name string
-		var email string
-		if err := rows.Scan(&id, &name, &email); err != nil {
-			panic(err)
-		}
-
-		result = append(result, User{Id: id, Name: name, Email: email})
-	}
-	return result
+func (r *usersImpl) FindAll() ([]User, error) {
+	return r.FindBy(User{})
 }
 
-func (r *usersImpl) FindBy(u User) []User {
+func (r *usersImpl) FindBy(u User) ([]User, error) {
 	queryConstraints := []string{}
+	queryParams := []any{}
 	if u.Id > 0 {
-		queryConstraints = append(queryConstraints, fmt.Sprintf(" id = %d ", u.Id))
+		queryConstraints = append(queryConstraints, " id = ? ")
+		queryParams = append(queryParams, u.Id)
 	}
 	if len(u.Name) > 0 {
-		queryConstraints = append(queryConstraints, fmt.Sprintf(" name = \"%s\" ", u.Name))
+		queryConstraints = append(queryConstraints, " name = ? ")
+		queryParams = append(queryParams, u.Name)
 	}
 	if len(u.Email) > 0 {
-		queryConstraints = append(queryConstraints, fmt.Sprintf(" email = \"%s\" ", u.Email))
+		queryConstraints = append(queryConstraints, " email = ? ")
+		queryParams = append(queryParams, u.Email)
 	}
-	queryConstraintsString := strings.Join(queryConstraints, " AND ")
-	query := fmt.Sprintf(" SELECT * FROM users WHERE %s ", queryConstraintsString)
+	queryConstraintsString := ""
+	if len(queryConstraints) > 0 {
+		queryConstraintsString = fmt.Sprintf(" WHERE %s ", strings.Join(queryConstraints, " AND "))
+	}
+	query := fmt.Sprintf(" SELECT * FROM users %s ", queryConstraintsString)
 
-	rows, err := r.db.Query(query)
+	rows, err := r.db.Query(query, queryParams...)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
+	defer rows.Close()
 	var result []User
-	// if err = rows.Err(); err != nil {
-	// 	panic(err)
-	// }
+
 	for rows.Next() {
 		var id int
 		var name string
@@ -90,22 +86,43 @@ func (r *usersImpl) FindBy(u User) []User {
 
 		result = append(result, User{Id: id, Name: name, Email: email})
 	}
-	return result
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func (r *usersImpl) Create(u User) (User, error) {
 	res, err := r.db.Exec(
-		`INSERT INTO users (name, email) VALUES (?, ?)`,
+		` INSERT INTO users (name, email) VALUES (?, ?) `,
 		u.Name,
 		u.Email,
 	)
 	if err != nil {
-		return User{}, err
-	}
-	id, err := res.LastInsertId()
-	if err != nil {
-		return User{}, err
+		var sqliteErr *sqlite.Error
+		if errors.As(err, &sqliteErr) {
+			if sqliteErr.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE {
+				return User{}, fmt.Errorf("Cannot DBRepoUsers.Create\n%w", &APIError{
+					Code: http.StatusConflict,
+					Text: fmt.Sprintf("Email %s already taken", u.Email),
+				})
+			}
+		}
+
+		return User{}, fmt.Errorf("Cannot DBRepoUsers.Create\n%w", err)
 	}
 
-	return User{Id: int(id), Name: u.Name, Email: u.Email}, nil
+	id, err := res.LastInsertId()
+	if err != nil {
+		return User{}, fmt.Errorf("Cannot DBRepoUsers.Create\n%w", err)
+	}
+	users, err := r.FindBy(User{Id: int(id)})
+	if err != nil {
+		return User{}, fmt.Errorf("Cannot DBRepoUsers.Create\n%w", err)
+	}
+	if len(users) != 1 {
+		return User{}, fmt.Errorf("not unique user")
+	}
+
+	return users[0], fmt.Errorf("Cannot DBRepoUsers.Create\n%w", err)
 }
