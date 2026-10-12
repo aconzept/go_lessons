@@ -22,11 +22,15 @@ type DBRepoUsers interface {
 	FindAll() ([]User, error)
 	FindBy(u User) ([]User, error)
 	Create(u User) (User, error)
+	Delete(id int) error
+	Update(u User) (User, error)
 }
 
-type usersImpl struct {
+type usersImpl struct { // implements DBRepoUsers
 	db *sql.DB
 }
+
+var _ DBRepoUsers = &usersImpl{}
 
 func DBRepoUsersNew(db *sql.DB) DBRepoUsers {
 	return &usersImpl{db: db}
@@ -124,5 +128,86 @@ func (r *usersImpl) Create(u User) (User, error) {
 		return User{}, fmt.Errorf("not unique user")
 	}
 
-	return users[0], fmt.Errorf("Cannot DBRepoUsers.Create\n%w", err)
+	return users[0], nil
+}
+
+func (r *usersImpl) Delete(id int) error {
+	res, err := r.db.Exec( // this
+		` DELETE FROM users WHERE id = ? `,
+		id,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	if rowsCount, err := res.RowsAffected(); err != nil || rowsCount != 1 {
+		if rowsCount != 1 {
+			return fmt.Errorf("Cannot DBRepoUsers.Delete\n%w\n%w",
+				APIErrorNew(http.StatusNotFound,
+					fmt.Sprintf("Cannot find user %d", id),
+				),
+				fmt.Errorf("rowsCount != 1"),
+			)
+		}
+		return err
+	}
+	return nil
+}
+
+func (r *usersImpl) Update(u User) (User, error) {
+	updateParts := []string{}
+	updateParams := []any{}
+	if len(u.Name) > 0 {
+		updateParts = append(updateParts, `name = ?`)
+		updateParams = append(updateParams, u.Name)
+	}
+	if len(u.Email) > 0 {
+		updateParts = append(updateParts, `email = ?`)
+		updateParams = append(updateParams, u.Email)
+	}
+	updateParams = append(updateParams, u.Id)
+
+	res, err := r.db.Exec(
+		fmt.Sprintf(` UPDATE users SET %s WHERE id = ? `,
+			strings.Join(updateParts, `,`),
+		),
+		updateParams...,
+	)
+
+	if err != nil {
+		var sqliteErr *sqlite.Error
+		if errors.As(err, &sqliteErr) {
+			if sqliteErr.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE {
+				return User{}, fmt.Errorf("Cannot DBRepoUsers.Update\n%w\n%w",
+					APIErrorNew(http.StatusConflict, fmt.Sprintf("Email %s already taken", u.Email)),
+					err,
+				)
+			}
+		}
+
+		return User{}, fmt.Errorf("Cannot DBRepoUsers.Update\n%w", err)
+	}
+
+	if rowsCount, err := res.RowsAffected(); err != nil || rowsCount != 1 {
+		if rowsCount != 1 {
+			return User{}, fmt.Errorf("Cannot DBRepoUsers.Update\n%w\n%w",
+				APIErrorNew(http.StatusNotFound,
+					fmt.Sprintf("Cannot find user %d", u.Id),
+				),
+				fmt.Errorf("rowsCount != 1"),
+			)
+		}
+		return User{}, err
+	}
+
+	users, err := r.FindBy(User{Id: int(u.Id)})
+	if err != nil {
+		return User{}, fmt.Errorf("Cannot DBRepoUsers.Create\n%w", err)
+	}
+	if len(users) != 1 {
+		return User{}, fmt.Errorf("not unique user")
+	}
+
+	return users[0], nil
 }
