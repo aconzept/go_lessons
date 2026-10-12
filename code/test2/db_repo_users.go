@@ -17,10 +17,15 @@ type User struct {
 	Email string
 }
 
+// todo create a common query build to catch 2 todos
+// todo use generics
+// todo if 2 above ok - full ORM from Zaven
+
 type DBRepoUsers interface {
 	Init()
 	FindAll() ([]User, error)
 	FindBy(u User) ([]User, error)
+	FindById(id int) (User, error)
 	Create(u User) (User, error)
 	Delete(id int) error
 	Update(u User) (User, error)
@@ -53,6 +58,7 @@ func (r *usersImpl) FindAll() ([]User, error) {
 }
 
 func (r *usersImpl) FindBy(u User) ([]User, error) {
+	// todo move to query builder
 	queryConstraints := []string{}
 	queryParams := []any{}
 	if u.Id > 0 {
@@ -96,6 +102,18 @@ func (r *usersImpl) FindBy(u User) ([]User, error) {
 	return result, nil
 }
 
+func (r *usersImpl) FindById(id int) (User, error) {
+	users, err := r.FindBy(User{Id: id})
+	if err != nil {
+		return User{}, fmt.Errorf("Cannot DBRepoUsers.FindById\n%w", err)
+	}
+	if len(users) != 1 {
+		return User{}, fmt.Errorf("Cannot DBRepoUsers.FindById: not unique user")
+	}
+
+	return users[0], nil
+}
+
 func (r *usersImpl) Create(u User) (User, error) {
 	res, err := r.db.Exec(
 		` INSERT INTO users (name, email) VALUES (?, ?) `,
@@ -120,15 +138,8 @@ func (r *usersImpl) Create(u User) (User, error) {
 	if err != nil {
 		return User{}, fmt.Errorf("Cannot DBRepoUsers.Create\n%w", err)
 	}
-	users, err := r.FindBy(User{Id: int(id)})
-	if err != nil {
-		return User{}, fmt.Errorf("Cannot DBRepoUsers.Create\n%w", err)
-	}
-	if len(users) != 1 {
-		return User{}, fmt.Errorf("not unique user")
-	}
 
-	return users[0], nil
+	return r.FindById(int(id))
 }
 
 func (r *usersImpl) Delete(id int) error {
@@ -156,6 +167,7 @@ func (r *usersImpl) Delete(id int) error {
 }
 
 func (r *usersImpl) Update(u User) (User, error) {
+	// todo move to query builder
 	updateParts := []string{}
 	updateParams := []any{}
 	if len(u.Name) > 0 {
@@ -201,13 +213,5 @@ func (r *usersImpl) Update(u User) (User, error) {
 		return User{}, err
 	}
 
-	users, err := r.FindBy(User{Id: int(u.Id)})
-	if err != nil {
-		return User{}, fmt.Errorf("Cannot DBRepoUsers.Create\n%w", err)
-	}
-	if len(users) != 1 {
-		return User{}, fmt.Errorf("not unique user")
-	}
-
-	return users[0], nil
+	return r.FindById(u.Id)
 }
