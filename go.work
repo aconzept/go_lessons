@@ -3,3 +3,4 @@ go 1.27
 use ./code/test1
 use ./code/test2
 use ./code/test3
+use ./code/test4
